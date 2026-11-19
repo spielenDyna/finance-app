@@ -41,7 +41,7 @@ After=network.target
 [Service]
 User=$APP_USER
 WorkingDirectory=$APP_DIR
-ExecStart=$APP_DIR/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8765 --proxy-headers --forwarded-allow-ips=127.0.0.1
+ExecStart=$APP_DIR/.venv/bin/waitress-serve --listen=127.0.0.1:8765 --trusted-proxy=127.0.0.1 --trusted-proxy-headers=x-forwarded-proto app.main:app
 Restart=always
 
 [Install]

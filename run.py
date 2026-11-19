@@ -2,7 +2,7 @@
 import threading
 import webbrowser
 
-import uvicorn
+from waitress import serve
 
 from app import auth
 
@@ -12,5 +12,7 @@ if __name__ == "__main__":
     if auth.muat_konfigurasi() is None:
         import atur_password
         atur_password.main()
+    from app.main import app
+
     threading.Timer(1.5, lambda: webbrowser.open(f"http://{HOST}:{PORT}")).start()
-    uvicorn.run("app.main:app", host=HOST, port=PORT)
+    serve(app, host=HOST, port=PORT)

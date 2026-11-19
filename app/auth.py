@@ -6,9 +6,7 @@ import os
 import secrets
 import time
 
-from fastapi import APIRouter, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
-from pydantic import BaseModel
+from flask import Blueprint, jsonify, redirect, request, send_file
 
 from . import db
 
@@ -20,7 +18,7 @@ STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 # Halaman yang boleh diakses tanpa login.
 PUBLIK = ("/login", "/api/login")
 
-router = APIRouter()
+router = Blueprint("auth", __name__)
 
 
 def _file_login() -> str:
@@ -71,62 +69,62 @@ def token_valid(token: str, secret: str) -> bool:
         return False
 
 
-def _aman_cookie(request: Request) -> bool:
-    # Di balik Cloudflare Tunnel koneksi luar memakai https.
-    return request.headers.get("x-forwarded-proto") == "https" or request.url.scheme == "https"
+def _aman_cookie() -> bool:
+    # Di balik proxy (PythonAnywhere, Cloudflare Tunnel) koneksi luar memakai https.
+    return request.headers.get("x-forwarded-proto") == "https" or request.is_secure
 
 
 def pasang(app):
     """Memasang pemeriksaan login ke semua permintaan."""
 
-    @app.middleware("http")
-    async def cek_login(request: Request, call_next):
-        path = request.url.path
+    @app.before_request
+    def cek_login():
+        path = request.path
         if path in PUBLIK:
-            return await call_next(request)
+            return None
 
         cfg = muat_konfigurasi()
         token = request.cookies.get(COOKIE)
         if cfg and token and token_valid(token, cfg["secret"]):
-            return await call_next(request)
+            return None
 
         if path.startswith("/api/"):
-            return JSONResponse(status_code=401, content={"detail": "Belum login."})
-        return RedirectResponse("/login", status_code=303)
-
-
-class LoginIn(BaseModel):
-    password: str
+            return jsonify(detail="Belum login."), 401
+        return redirect("/login", code=303)
 
 
 @router.get("/login")
 def halaman_login():
-    return FileResponse(os.path.join(STATIC, "login.html"))
+    return send_file(os.path.join(STATIC, "login.html"))
 
 
 @router.post("/api/login")
-def login(body: LoginIn, request: Request):
+def login():
     cfg = muat_konfigurasi()
     if cfg is None:
-        return JSONResponse(status_code=503, content={"detail": "Password belum dibuat. Jalankan atur_password.py."})
-    if not cek_password(body.password, cfg):
+        return jsonify(detail="Password belum dibuat. Jalankan atur_password.py."), 503
+    body = request.get_json(silent=True)
+    password = body.get("password") if isinstance(body, dict) else None
+    if not isinstance(password, str):
+        return jsonify(detail="password: wajib diisi."), 422
+    if not cek_password(password, cfg):
         time.sleep(1)  # perlambat tebakan password
-        return JSONResponse(status_code=401, content={"detail": "Password salah."})
+        return jsonify(detail="Password salah."), 401
 
-    resp = JSONResponse({"ok": True})
+    resp = jsonify(ok=True)
     resp.set_cookie(
         COOKIE,
         buat_token(cfg["secret"]),
         max_age=MASA_AKTIF,
         httponly=True,
-        samesite="lax",
-        secure=_aman_cookie(request),
+        samesite="Lax",
+        secure=_aman_cookie(),
     )
     return resp
 
 
 @router.post("/api/logout")
 def logout():
-    resp = JSONResponse({"ok": True})
+    resp = jsonify(ok=True)
     resp.delete_cookie(COOKIE)
     return resp
