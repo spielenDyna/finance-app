@@ -106,10 +106,12 @@ def test_baca_via_gemini(c, monkeypatch):
         def read(self):
             return _json.dumps({"candidates": [{"content": {"parts": [{"text": _json.dumps(keluar)}]}}]}).encode()
 
-    def palsu(req, timeout=0):
-        assert "gemini" in req.full_url and "additionalProperties" not in req.data.decode()
-        return Resp()
+    class Opener:
+        @staticmethod
+        def open(req, timeout=0):
+            assert "gemini" in req.full_url and "additionalProperties" not in req.data.decode()
+            return Resp()
 
-    monkeypatch.setattr(struk.urllib.request, "urlopen", palsu)
+    monkeypatch.setattr(struk, "_opener", lambda: Opener)
     r = c.post("/api/struk/baca", data=b"gambar", content_type="image/jpeg")
     assert r.status_code == 200 and r.get_json()["item"][0]["bahan_id"] == sel

@@ -83,6 +83,16 @@ def _provider() -> str:
     return "gemini" if os.environ.get("GEMINI_API_KEY") else "claude"
 
 
+def _opener():
+    """Di PythonAnywhere akses keluar wajib lewat proxy; proses web tidak otomatis mewarisinya dari console."""
+    proxy = os.environ.get("STRUK_PROXY") or os.environ.get("https_proxy") or os.environ.get("HTTPS_PROXY")
+    if not proxy and os.environ.get("PYTHONANYWHERE_DOMAIN"):
+        proxy = "http://proxy.server:3128"
+    if proxy:
+        return urllib.request.build_opener(urllib.request.ProxyHandler({"https": proxy, "http": proxy}))
+    return urllib.request.build_opener()
+
+
 def _via_gemini(gambar: bytes, media_type: str, prompt: str) -> str:
     kunci = os.environ.get("GEMINI_API_KEY")
     if not kunci:
@@ -100,7 +110,7 @@ def _via_gemini(gambar: bytes, media_type: str, prompt: str) -> str:
         data=json.dumps(body).encode(), method="POST",
         headers={"Content-Type": "application/json", "x-goog-api-key": kunci})
     try:
-        with urllib.request.urlopen(req, timeout=90) as r:
+        with _opener().open(req, timeout=90) as r:
             data = json.loads(r.read())
     except urllib.error.HTTPError as e:
         if e.code in (400, 401, 403):
@@ -110,8 +120,8 @@ def _via_gemini(gambar: bytes, media_type: str, prompt: str) -> str:
         if e.code == 404:
             raise StrukGagal(f"Model Gemini '{GEMINI_MODEL}' tidak ditemukan. Atur STRUK_GEMINI_MODEL ke model yang tersedia.", 502)
         raise StrukGagal(f"Layanan OCR gagal (kode {e.code}).", 502)
-    except (urllib.error.URLError, TimeoutError):
-        raise StrukGagal("Tidak bisa menghubungi layanan OCR.", 502)
+    except (urllib.error.URLError, TimeoutError) as e:
+        raise StrukGagal(f"Tidak bisa menghubungi layanan OCR ({getattr(e, 'reason', e)}).", 502)
     try:
         return data["candidates"][0]["content"]["parts"][0]["text"]
     except (KeyError, IndexError):
