@@ -44,7 +44,7 @@ Pilih salah satu penyedia:
         import os
         os.environ["GEMINI_API_KEY"] = "AIza..."
 
-   Model default `gemini-flash-latest` (ubah lewat `STRUK_GEMINI_MODEL`). Kuota gratis terbatas per hari/menit;
+   Model default `gemini-flash-lite-latest` (ubah lewat `STRUK_GEMINI_MODEL`). Kuota gratis terbatas per hari/menit;
    bila habis, aplikasi menampilkan pesan dan Anda tetap bisa input manual. Catatan: pada tingkat gratis,
    Google dapat memakai data permintaan untuk peningkatan produk.
 

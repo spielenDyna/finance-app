@@ -142,3 +142,28 @@ def test_gemini_503_pindah_ke_model_cadangan(c, monkeypatch):
     monkeypatch.setattr(struk, "_opener", lambda: Opener)
     r = c.post("/api/struk/baca", data=b"gambar", content_type="image/jpeg")
     assert r.status_code == 200 and len(dipanggil) == 3
+
+
+def test_gemini_timeout_pindah_ke_model_cadangan(c, monkeypatch):
+    import json as _json
+    monkeypatch.setenv("GEMINI_API_KEY", "palsu")
+    monkeypatch.delenv("STRUK_PROVIDER", raising=False)
+    dipanggil = []
+
+    class Resp:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self):
+            return _json.dumps({"candidates": [{"content": {"parts": [{"text": '{"tanggal":"","pemasok":"","item":[]}'}]}}]}).encode()
+
+    class Opener:
+        @staticmethod
+        def open(req, timeout=0):
+            dipanggil.append(req.full_url)
+            if struk.GEMINI_CADANGAN not in req.full_url:
+                raise TimeoutError("The read operation timed out")
+            return Resp()
+
+    monkeypatch.setattr(struk, "_opener", lambda: Opener)
+    r = c.post("/api/struk/baca", data=b"gambar", content_type="image/jpeg")
+    assert r.status_code == 200 and len(dipanggil) == 2

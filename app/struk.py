@@ -16,8 +16,8 @@ import urllib.request
 import anthropic
 
 MODEL = os.environ.get("STRUK_MODEL", "claude-haiku-5-5")
-GEMINI_MODEL = os.environ.get("STRUK_GEMINI_MODEL", "gemini-flash-latest")
-GEMINI_CADANGAN = os.environ.get("STRUK_GEMINI_CADANGAN", "gemini-flash-lite-latest")
+GEMINI_MODEL = os.environ.get("STRUK_GEMINI_MODEL", "gemini-flash-lite-latest")
+GEMINI_CADANGAN = os.environ.get("STRUK_GEMINI_CADANGAN", "gemini-flash-latest")
 MEDIA_DIIZINKAN = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 MAKS_BYTE = 8 * 1024 * 1024
 
@@ -107,7 +107,7 @@ def _via_gemini(gambar: bytes, media_type: str, prompt: str) -> str:
         "generationConfig": {"responseMimeType": "application/json",
                              "responseSchema": _tanpa_additional(SKEMA), "temperature": 0},
     }
-    data, terakhir = None, None
+    data, terakhir, galat = None, None, None
     for model in dict.fromkeys([GEMINI_MODEL, GEMINI_CADANGAN]):
         for percobaan in range(2):
             req = urllib.request.Request(
@@ -115,7 +115,7 @@ def _via_gemini(gambar: bytes, media_type: str, prompt: str) -> str:
                 data=json.dumps(body).encode(), method="POST",
                 headers={"Content-Type": "application/json", "x-goog-api-key": kunci})
             try:
-                with _opener().open(req, timeout=60) as r:
+                with _opener().open(req, timeout=45) as r:
                     data = json.loads(r.read())
                 break
             except urllib.error.HTTPError as e:
@@ -128,11 +128,15 @@ def _via_gemini(gambar: bytes, media_type: str, prompt: str) -> str:
                     time.sleep(2)  # kelebihan beban sementara: coba sekali lagi
                     continue
                 break  # 404 atau gagal lagi: coba model cadangan
-            except (urllib.error.URLError, TimeoutError) as e:
-                raise StrukGagal(f"Tidak bisa menghubungi layanan OCR ({getattr(e, 'reason', e)}).", 502)
+            except (urllib.error.URLError, TimeoutError, OSError) as e:
+                # Timeout/koneksi putus: jangan ulang model yang sama, langsung coba model cadangan.
+                galat = f"Tidak bisa menghubungi layanan OCR ({getattr(e, 'reason', e)})."
+                break
         if data is not None:
             break
     if data is None:
+        if terakhir is None and galat:
+            raise StrukGagal(galat, 502)
         if terakhir in (500, 502, 503, 504):
             raise StrukGagal("Layanan Gemini sedang sibuk (503). Coba lagi beberapa saat lagi.", 503)
         raise StrukGagal(f"Layanan OCR gagal (kode {terakhir}). Periksa STRUK_GEMINI_MODEL.", 502)
