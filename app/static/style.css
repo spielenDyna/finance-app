@@ -55,3 +55,8 @@ dialog::backdrop { background: rgba(0,0,0,.4); }
 @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
 
 header .keluar { margin-left: auto; }
+
+/* foto struk */
+#struk-review table input, #struk-review table select { width: 100%; min-width: 90px; }
+#struk-review .baru { margin-top: 4px; }
+#struk-review .nama-struk { font-size: 12px; color: var(--muted); }

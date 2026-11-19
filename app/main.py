@@ -4,13 +4,14 @@ import sqlite3
 
 from flask import Flask, jsonify, request, send_file
 
-from . import auth, db, inventory, report
+from . import auth, db, inventory, report, struk
 from .validasi import Galat, angka, bulat, daftar, objek, tanggal, teks
 
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
 app = Flask(__name__, static_folder=STATIC, static_url_path="/static")
 app.json.ensure_ascii = False
+app.config["MAX_CONTENT_LENGTH"] = struk.MAKS_BYTE + 1024 * 1024
 auth.pasang(app)
 app.register_blueprint(auth.router)
 db.init_db()
@@ -19,6 +20,11 @@ db.init_db()
 @app.errorhandler(Galat)
 def _galat(exc: Galat):
     return jsonify(detail=exc.pesan), exc.status
+
+
+@app.errorhandler(413)
+def _terlalu_besar(_):
+    return jsonify(detail="Ukuran data terlalu besar."), 413
 
 
 @app.errorhandler(sqlite3.IntegrityError)
@@ -176,6 +182,42 @@ def add_pembelian():
         )
         inventory.rebuild(c)
         return jsonify(id=cur.lastrowid)
+
+
+@app.post("/api/pembelian/banyak")
+def add_pembelian_banyak():
+    """Menyimpan beberapa baris pembelian sekaligus (mis. dari satu struk), semuanya atau tidak sama sekali."""
+    d = body()
+    tgl, pemasok, catatan = tanggal(d, "tanggal"), teks(d, "pemasok"), teks(d, "catatan")
+    items = daftar(d, "items", 1)
+    with db.session() as c:
+        ids = []
+        for it in items:
+            baru = it.get("bahan_baru")
+            if baru:
+                nama, satuan = baca_bahan(objek(baru))
+                bahan_id = c.execute("INSERT INTO bahan (nama, satuan) VALUES (?, ?)", (nama, satuan)).lastrowid
+            else:
+                bahan_id = bulat(it, "bahan_id")
+            cur = c.execute(
+                "INSERT INTO pembelian (tanggal, bahan_id, qty, total, pemasok, catatan) VALUES (?, ?, ?, ?, ?, ?)",
+                (tgl, bahan_id, angka(it, "qty", gt=0), angka(it, "total", ge=0), pemasok, catatan),
+            )
+            ids.append(cur.lastrowid)
+        inventory.rebuild(c)
+        return jsonify(ids=ids)
+
+
+@app.post("/api/struk/baca")
+def baca_struk():
+    """Membaca foto struk (isi permintaan = byte gambar). Foto tidak disimpan."""
+    media = (request.mimetype or "").lower()
+    with db.session() as c:
+        bahan = rows(c, "SELECT id, nama, satuan FROM bahan ORDER BY nama")
+    try:
+        return jsonify(struk.baca(request.get_data(), media, bahan))
+    except struk.StrukGagal as e:
+        return jsonify(detail=e.pesan), e.status
 
 
 @app.put("/api/pembelian/<int:id_>")

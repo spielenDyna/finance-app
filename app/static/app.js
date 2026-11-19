@@ -329,6 +329,141 @@ async function muatPembelian() {
 window.muatPembelian = muatPembelian;
 loaders.pembelian = muatPembelian;
 
+// ---------- foto struk ----------
+// Foto diperkecil di browser lalu dikirim sekali untuk dibaca; tidak disimpan di server maupun browser.
+function kecilkanFoto(file, sisiMaks = 1800) {
+  return new Promise((ok, gagal) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, sisiMaks / Math.max(img.width, img.height));
+      const cv = document.createElement("canvas");
+      cv.width = Math.round(img.width * k);
+      cv.height = Math.round(img.height * k);
+      cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+      URL.revokeObjectURL(url);
+      cv.toBlob((b) => (b ? ok(b) : gagal(new Error("Gagal memproses gambar."))), "image/jpeg", 0.85);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      gagal(new Error("File ini bukan gambar yang bisa dibuka."));
+    };
+    img.src = url;
+  });
+}
+
+let DRAF_STRUK = [];
+
+$("#struk-baca").addEventListener("click", async () => {
+  const file = $("#struk-file").files[0];
+  const status = $("#struk-status"), tombol = $("#struk-baca");
+  if (!file) return toast("Pilih foto struk dulu");
+  tombol.disabled = true;
+  status.textContent = "Membaca struk, mohon tunggu...";
+  try {
+    const blob = await kecilkanFoto(file);
+    const res = await fetch("/api/struk/baca", { method: "POST", headers: { "Content-Type": "image/jpeg" }, body: blob });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    await muatMaster();
+    tampilkanDraf(data);
+    status.textContent = "Periksa hasil di bawah, perbaiki yang salah, lalu simpan. Foto tidak disimpan.";
+  } catch (e) {
+    status.textContent = "Gagal: " + e.message;
+  } finally {
+    tombol.disabled = false;
+    $("#struk-file").value = "";
+  }
+});
+
+function tampilkanDraf(d) {
+  DRAF_STRUK = d.item.map((it) => ({ ...it, qty: it.qty_bahan || "" }));
+  const opsi = (id) =>
+    '<option value="">- pilih bahan -</option><option value="baru">+ Bahan baru...</option>' +
+    BAHAN.map((b) => `<option value="${b.id}"${b.id === id ? " selected" : ""}>${esc(b.nama)} (${esc(b.satuan)})</option>`).join("");
+  const baris = DRAF_STRUK.map(
+    (it, i) => `<tr data-i="${i}">
+      <td><div class="nama-struk">Di struk: ${esc(it.nama_struk)} (${num(it.jumlah)}x)</div>
+        <select name="bahan">${opsi(it.bahan_id)}</select>
+        <div class="baru" hidden>
+          <input name="nama_baru" placeholder="Nama bahan baru" value="${esc(it.nama_struk)}">
+          <input name="satuan_baru" placeholder="Satuan (gram, pcs, ml...)">
+        </div></td>
+      <td><input type="number" step="any" min="0" name="qty" value="${it.qty}" placeholder="Qty"></td>
+      <td><input type="number" step="any" min="0" name="total" value="${it.total}"></td>
+      <td class="num"><button type="button" class="link" data-hapus>Buang</button></td>
+    </tr>`
+  ).join("");
+  const box = $("#struk-review");
+  box.hidden = false;
+  box.innerHTML = `
+    <div class="grid">
+      <label>Tanggal <input type="date" name="tanggal" value="${esc(d.tanggal || today())}"></label>
+      <label>Pemasok <input name="pemasok" value="${esc(d.pemasok)}"></label>
+    </div>
+    ${d.item.length ? `<div class="tabel-wrap"><table class="items"><thead><tr><th>Barang</th><th>Qty (satuan bahan)</th><th>Total (Rp)</th><th></th></tr></thead><tbody>${baris}</tbody></table></div>` : '<p class="hint">Tidak ada barang yang terbaca. Coba foto yang lebih jelas.</p>'}
+    <p class="hint" id="struk-jumlah"></p>
+    <button type="button" id="struk-simpan">Simpan semua</button>
+    <button type="button" class="secondary" id="struk-batal">Batal</button>`;
+  hitungStruk();
+  $("#struk-batal").onclick = () => {
+    box.hidden = true;
+    box.innerHTML = "";
+  };
+  $("#struk-simpan").onclick = simpanStruk;
+}
+
+{
+  const box = $("#struk-review");
+  box.addEventListener("input", () => hitungStruk());
+  box.addEventListener("change", (e) => {
+    if (e.target.name !== "bahan") return;
+    $(".baru", e.target.closest("tr")).hidden = e.target.value !== "baru";
+  });
+  box.addEventListener("click", (e) => {
+    if (!e.target.matches("[data-hapus]")) return;
+    e.target.closest("tr").remove();
+    hitungStruk();
+  });
+}
+
+function hitungStruk() {
+  const trs = [...document.querySelectorAll("#struk-review tbody tr")];
+  const total = trs.reduce((a, tr) => a + (+$('[name="total"]', tr).value || 0), 0);
+  const el = $("#struk-jumlah");
+  if (el) el.textContent = `${trs.length} barang, jumlah ${rp(total)}. Cocokkan dengan total di struk.`;
+}
+
+async function simpanStruk() {
+  const box = $("#struk-review");
+  const trs = [...box.querySelectorAll("tbody tr")];
+  if (!trs.length) return toast("Tidak ada barang untuk disimpan");
+  const items = [];
+  for (const tr of trs) {
+    const pilih = $('[name="bahan"]', tr).value;
+    const qty = +$('[name="qty"]', tr).value, total = +$('[name="total"]', tr).value;
+    if (!pilih) return toast("Ada barang yang bahannya belum dipilih");
+    if (!(qty > 0)) return toast("Ada barang yang qty-nya belum diisi");
+    const it = { qty, total };
+    if (pilih === "baru") {
+      const nama = $('[name="nama_baru"]', tr).value.trim(), satuan = $('[name="satuan_baru"]', tr).value.trim();
+      if (!nama || !satuan) return toast("Isi nama dan satuan untuk bahan baru");
+      it.bahan_baru = { nama, satuan };
+    } else it.bahan_id = +pilih;
+    items.push(it);
+  }
+  await api("/api/pembelian/banyak", {
+    method: "POST",
+    body: { tanggal: $('[name="tanggal"]', box).value, pemasok: $('[name="pemasok"]', box).value, catatan: "", items },
+  });
+  toast(`${items.length} pembelian tersimpan`);
+  box.hidden = true;
+  box.innerHTML = "";
+  $("#struk-status").textContent = "Tersimpan.";
+  await muatMaster();
+  await muatPembelian();
+}
+
 // ---------- beban ----------
 const fBb = $("#f-beban");
 fBb.addEventListener("submit", async (e) => {

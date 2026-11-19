@@ -54,6 +54,15 @@
 
   <!-- PEMBELIAN -->
   <section id="tab-pembelian" class="tab">
+    <div class="card" id="struk-card">
+      <h2>Isi dari foto struk</h2>
+      <div class="toolbar">
+        <input type="file" id="struk-file" accept="image/*">
+        <button type="button" id="struk-baca">Baca struk</button>
+      </div>
+      <p class="hint" id="struk-status">Foto hanya dibaca lalu dibuang, tidak disimpan. Hasil bacaan harus Anda periksa dulu sebelum disimpan.</p>
+      <div id="struk-review" hidden></div>
+    </div>
     <form id="f-pembelian" class="card">
       <h2>Catat pembelian bahan</h2>
       <div class="grid">

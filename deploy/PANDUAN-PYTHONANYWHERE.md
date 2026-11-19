@@ -34,6 +34,20 @@ Tab **Web** > **Add a new web app** > **Manual configuration** > pilih versi Pyt
 
 Error? Lihat **Error log** di tab Web.
 
+## Fitur foto struk (OCR)
+1. Buat API key di https://console.anthropic.com (beri batas pengeluaran bulanan kecil).
+2. Di file WSGI tab Web, tambahkan di bawah `sys.path` dua baris ini (isi key Anda):
+
+        import os
+        os.environ["ANTHROPIC_API_KEY"] = "sk-ant-..."
+
+   Key hanya ada di file WSGI di server, jangan dimasukkan ke git.
+3. Klik **Reload**. Di tab Pembelian Bahan akan ada kartu "Isi dari foto struk".
+
+Foto tidak disimpan: dikecilkan di browser, dikirim ke Anthropic untuk dibaca, lalu dibuang.
+Hasil bacaan selalu Anda periksa dulu sebelum masuk ke database. Model default `claude-haiku-5-5`
+(ubah lewat variabel `STRUK_MODEL` bila perlu).
+
 ## Catatan
 - Akun gratis: app tidur jika tidak di-*extend*; klik tombol **Run until 3 months from today**
   di tab Web setiap beberapa bulan.
