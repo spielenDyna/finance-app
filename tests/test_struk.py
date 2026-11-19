@@ -115,3 +115,30 @@ def test_baca_via_gemini(c, monkeypatch):
     monkeypatch.setattr(struk, "_opener", lambda: Opener)
     r = c.post("/api/struk/baca", data=b"gambar", content_type="image/jpeg")
     assert r.status_code == 200 and r.get_json()["item"][0]["bahan_id"] == sel
+
+
+def test_gemini_503_pindah_ke_model_cadangan(c, monkeypatch):
+    import json as _json
+    import urllib.error
+    monkeypatch.setenv("GEMINI_API_KEY", "palsu")
+    monkeypatch.delenv("STRUK_PROVIDER", raising=False)
+    monkeypatch.setattr(struk.time, "sleep", lambda s: None)
+    dipanggil = []
+
+    class Resp:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self):
+            return _json.dumps({"candidates": [{"content": {"parts": [{"text": '{"tanggal":"","pemasok":"","item":[]}'}]}}]}).encode()
+
+    class Opener:
+        @staticmethod
+        def open(req, timeout=0):
+            dipanggil.append(req.full_url)
+            if struk.GEMINI_CADANGAN not in req.full_url:
+                raise urllib.error.HTTPError(req.full_url, 503, "sibuk", {}, None)
+            return Resp()
+
+    monkeypatch.setattr(struk, "_opener", lambda: Opener)
+    r = c.post("/api/struk/baca", data=b"gambar", content_type="image/jpeg")
+    assert r.status_code == 200 and len(dipanggil) == 3

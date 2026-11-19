@@ -9,6 +9,7 @@ Hasilnya berupa draf yang harus diperiksa pengguna sebelum disimpan.
 import base64
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 
@@ -16,6 +17,7 @@ import anthropic
 
 MODEL = os.environ.get("STRUK_MODEL", "claude-haiku-5-5")
 GEMINI_MODEL = os.environ.get("STRUK_GEMINI_MODEL", "gemini-flash-latest")
+GEMINI_CADANGAN = os.environ.get("STRUK_GEMINI_CADANGAN", "gemini-flash-lite-latest")
 MEDIA_DIIZINKAN = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 MAKS_BYTE = 8 * 1024 * 1024
 
@@ -105,23 +107,35 @@ def _via_gemini(gambar: bytes, media_type: str, prompt: str) -> str:
         "generationConfig": {"responseMimeType": "application/json",
                              "responseSchema": _tanpa_additional(SKEMA), "temperature": 0},
     }
-    req = urllib.request.Request(
-        f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
-        data=json.dumps(body).encode(), method="POST",
-        headers={"Content-Type": "application/json", "x-goog-api-key": kunci})
-    try:
-        with _opener().open(req, timeout=90) as r:
-            data = json.loads(r.read())
-    except urllib.error.HTTPError as e:
-        if e.code in (400, 401, 403):
-            raise StrukGagal("API key Gemini ditolak. Periksa GEMINI_API_KEY.", 503)
-        if e.code == 429:
-            raise StrukGagal("Kuota gratis Gemini habis/sibuk. Coba lagi sebentar lagi.", 429)
-        if e.code == 404:
-            raise StrukGagal(f"Model Gemini '{GEMINI_MODEL}' tidak ditemukan. Atur STRUK_GEMINI_MODEL ke model yang tersedia.", 502)
-        raise StrukGagal(f"Layanan OCR gagal (kode {e.code}).", 502)
-    except (urllib.error.URLError, TimeoutError) as e:
-        raise StrukGagal(f"Tidak bisa menghubungi layanan OCR ({getattr(e, 'reason', e)}).", 502)
+    data, terakhir = None, None
+    for model in dict.fromkeys([GEMINI_MODEL, GEMINI_CADANGAN]):
+        for percobaan in range(2):
+            req = urllib.request.Request(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                data=json.dumps(body).encode(), method="POST",
+                headers={"Content-Type": "application/json", "x-goog-api-key": kunci})
+            try:
+                with _opener().open(req, timeout=60) as r:
+                    data = json.loads(r.read())
+                break
+            except urllib.error.HTTPError as e:
+                if e.code in (400, 401, 403):
+                    raise StrukGagal("API key Gemini ditolak. Periksa GEMINI_API_KEY.", 503)
+                if e.code == 429:
+                    raise StrukGagal("Kuota gratis Gemini habis/sibuk. Coba lagi sebentar lagi.", 429)
+                terakhir = e.code
+                if e.code in (500, 502, 503, 504) and percobaan == 0:
+                    time.sleep(2)  # kelebihan beban sementara: coba sekali lagi
+                    continue
+                break  # 404 atau gagal lagi: coba model cadangan
+            except (urllib.error.URLError, TimeoutError) as e:
+                raise StrukGagal(f"Tidak bisa menghubungi layanan OCR ({getattr(e, 'reason', e)}).", 502)
+        if data is not None:
+            break
+    if data is None:
+        if terakhir in (500, 502, 503, 504):
+            raise StrukGagal("Layanan Gemini sedang sibuk (503). Coba lagi beberapa saat lagi.", 503)
+        raise StrukGagal(f"Layanan OCR gagal (kode {terakhir}). Periksa STRUK_GEMINI_MODEL.", 502)
     try:
         return data["candidates"][0]["content"]["parts"][0]["text"]
     except (KeyError, IndexError):
