@@ -35,18 +35,27 @@ Tab **Web** > **Add a new web app** > **Manual configuration** > pilih versi Pyt
 Error? Lihat **Error log** di tab Web.
 
 ## Fitur foto struk (OCR)
-1. Buat API key di https://console.anthropic.com (beri batas pengeluaran bulanan kecil).
-2. Di file WSGI tab Web, tambahkan di bawah `sys.path` dua baris ini (isi key Anda):
+Pilih salah satu penyedia:
+
+**Gemini (ada tingkat gratis, disarankan)**
+1. Buat API key gratis di https://aistudio.google.com/apikey (tanpa kartu kredit).
+2. Di file WSGI tab Web, tambahkan di bawah `sys.path`:
 
         import os
-        os.environ["ANTHROPIC_API_KEY"] = "sk-ant-..."
+        os.environ["GEMINI_API_KEY"] = "AIza..."
 
-   Key hanya ada di file WSGI di server, jangan dimasukkan ke git.
-3. Klik **Reload**. Di tab Pembelian Bahan akan ada kartu "Isi dari foto struk".
+   Model default `gemini-2.5-flash` (ubah lewat `STRUK_GEMINI_MODEL`). Kuota gratis terbatas per hari/menit;
+   bila habis, aplikasi menampilkan pesan dan Anda tetap bisa input manual. Catatan: pada tingkat gratis,
+   Google dapat memakai data permintaan untuk peningkatan produk.
 
-Foto tidak disimpan: dikecilkan di browser, dikirim ke Anthropic untuk dibaca, lalu dibuang.
-Hasil bacaan selalu Anda periksa dulu sebelum masuk ke database. Model default `claude-haiku-5-5`
-(ubah lewat variabel `STRUK_MODEL` bila perlu).
+**Claude (berbayar)**: buat key di https://console.anthropic.com lalu atur `os.environ["ANTHROPIC_API_KEY"] = "sk-ant-..."`.
+
+Bila keduanya diatur, Gemini dipakai; paksa dengan `STRUK_PROVIDER` = `gemini` atau `claude`.
+Key hanya ada di file WSGI di server, jangan dimasukkan ke git. Lalu klik **Reload**;
+di tab Pembelian Bahan akan ada kartu "Isi dari foto struk".
+
+Foto tidak disimpan: dikecilkan di browser, dikirim ke penyedia OCR untuk dibaca, lalu dibuang.
+Hasil bacaan selalu Anda periksa dulu sebelum masuk ke database. Model Claude default `claude-haiku-5-5` (`STRUK_MODEL`).
 
 ## Catatan
 - Akun gratis: app tidur jika tidak di-*extend*; klik tombol **Run until 3 months from today**

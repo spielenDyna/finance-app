@@ -8,6 +8,9 @@ if PROJECT not in sys.path:
 
 from app.main import app as application  # noqa: E402,F401
 
-# Fitur foto struk: tempel API key Anthropic di server saja (JANGAN di-commit ke git).
+# Fitur foto struk: tempel API key di server saja (JANGAN di-commit ke git).
+# Gemini punya tingkat gratis: https://aistudio.google.com/apikey
 # import os
+# os.environ["GEMINI_API_KEY"] = "AIza..."
+# atau (berbayar):
 # os.environ["ANTHROPIC_API_KEY"] = "sk-ant-..."

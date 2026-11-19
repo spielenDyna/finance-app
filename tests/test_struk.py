@@ -25,6 +25,8 @@ def test_struk_butuh_login():
 
 def test_tanpa_api_key_ditolak_rapi(c, monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("STRUK_PROVIDER", raising=False)
     r = c.post("/api/struk/baca", data=b"abc", content_type="image/jpeg")
     assert r.status_code == 503 and "ANTHROPIC_API_KEY" in r.get_json()["detail"]
 
@@ -37,6 +39,8 @@ def test_format_bukan_gambar_ditolak(c):
 def test_baca_membersihkan_bahan_id_tak_dikenal(c, monkeypatch):
     sel = c.post("/api/bahan", json={"nama": "Gula", "satuan": "gram"}).get_json()["id"]
     monkeypatch.setenv("ANTHROPIC_API_KEY", "palsu")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("STRUK_PROVIDER", raising=False)
 
     class Blok:
         type = "text"
@@ -86,3 +90,26 @@ def test_simpan_banyak_gagal_tidak_menyimpan_sebagian(c):
     assert r.status_code == 400
     assert len(c.get("/api/pembelian").get_json()) == sebelum
     assert "Susu" not in {b["nama"] for b in c.get("/api/bahan").get_json()}
+
+
+def test_baca_via_gemini(c, monkeypatch):
+    import json as _json
+    sel = next(b["id"] for b in c.get("/api/bahan").get_json() if b["nama"] == "Gula")
+    monkeypatch.setenv("GEMINI_API_KEY", "palsu")
+    monkeypatch.delenv("STRUK_PROVIDER", raising=False)
+    keluar = {"tanggal": "", "pemasok": "", "item": [
+        {"nama_struk": "GULA", "jumlah": 1, "total": 15000, "bahan_id": sel, "qty_bahan": 1000}]}
+
+    class Resp:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self):
+            return _json.dumps({"candidates": [{"content": {"parts": [{"text": _json.dumps(keluar)}]}}]}).encode()
+
+    def palsu(req, timeout=0):
+        assert "gemini" in req.full_url and "additionalProperties" not in req.data.decode()
+        return Resp()
+
+    monkeypatch.setattr(struk.urllib.request, "urlopen", palsu)
+    r = c.post("/api/struk/baca", data=b"gambar", content_type="image/jpeg")
+    assert r.status_code == 200 and r.get_json()["item"][0]["bahan_id"] == sel
