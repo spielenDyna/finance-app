@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Masuk - Finance App</title>
+<style>
+  :root { --bg:#f5f6f8; --card:#ffffff; --teks:#1d2330; --aksen:#2563eb; --galat:#b91c1c; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg:#14171d; --card:#1f242d; --teks:#e6e9ef; --aksen:#60a5fa; --galat:#f87171; }
+  }
+  :root[data-theme="dark"] { --bg:#14171d; --card:#1f242d; --teks:#e6e9ef; --aksen:#60a5fa; --galat:#f87171; }
+  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+         background:var(--bg); color:var(--teks); font-family:system-ui, sans-serif; padding:16px; box-sizing:border-box; }
+  form { background:var(--card); padding:28px 24px; border-radius:12px; width:100%; max-width:340px;
+         box-shadow:0 4px 18px rgba(0,0,0,.08); box-sizing:border-box; }
+  h1 { font-size:1.3rem; margin:0 0 18px; }
+  label { display:block; font-size:.9rem; margin-bottom:6px; }
+  input { width:100%; padding:10px 12px; font-size:1rem; border:1px solid #9aa3b2; border-radius:8px;
+          background:transparent; color:var(--teks); box-sizing:border-box; }
+  button { width:100%; margin-top:16px; padding:11px; font-size:1rem; border:0; border-radius:8px;
+           background:var(--aksen); color:#fff; cursor:pointer; }
+  button:disabled { opacity:.6; cursor:default; }
+  #pesan { min-height:1.2em; margin-top:12px; font-size:.9rem; color:var(--galat); }
+</style>
+</head>
+<body>
+<form id="form-login">
+  <h1>Finance App</h1>
+  <label for="pw">Password</label>
+  <input id="pw" type="password" autocomplete="current-password" required autofocus>
+  <button id="tombol" type="submit">Masuk</button>
+  <div id="pesan" role="alert"></div>
+</form>
+<script>
+  const form = document.getElementById("form-login");
+  const pesan = document.getElementById("pesan");
+  const tombol = document.getElementById("tombol");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    pesan.textContent = "";
+    tombol.disabled = true;
+    try {
+      const r = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: document.getElementById("pw").value }),
+      });
+      if (r.ok) {
+        location.href = "/";
+        return;
+      }
+      const data = await r.json().catch(() => ({}));
+      pesan.textContent = data.detail || "Gagal masuk.";
+    } catch (err) {
+      pesan.textContent = "Tidak dapat terhubung ke server.";
+    }
+    tombol.disabled = false;
+  });
+</script>
+</body>
+</html>

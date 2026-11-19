@@ -1,0 +1,155 @@
+﻿<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Finance App</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>Finance App</h1>
+  <nav id="tabs">
+    <button data-tab="laporan" class="active">Laba Rugi</button>
+    <button data-tab="penjualan">Penjualan</button>
+    <button data-tab="pembelian">Pembelian Bahan</button>
+    <button data-tab="beban">Beban</button>
+    <button data-tab="bahan">Bahan & Stok</button>
+    <button data-tab="produk">Produk & Resep</button>
+    <button data-tab="opname">Stok Opname</button>
+  </nav>
+  <button id="keluar" type="button" class="keluar">Keluar</button>
+</header>
+
+<main>
+  <!-- LAPORAN -->
+  <section id="tab-laporan" class="tab active">
+    <div class="toolbar">
+      <label>Dari <input type="date" id="lr-dari"></label>
+      <label>Sampai <input type="date" id="lr-sampai"></label>
+      <button id="lr-tampil">Tampilkan</button>
+    </div>
+    <div id="lr-peringatan"></div>
+    <div id="lr-isi"></div>
+    <p class="hint">Klik baris rincian untuk melihat transaksi sumber dan rumusnya.</p>
+  </section>
+
+  <!-- PENJUALAN -->
+  <section id="tab-penjualan" class="tab">
+    <form id="f-penjualan" class="card">
+      <h2>Catat penjualan</h2>
+      <div class="grid">
+        <label>Tanggal <input type="date" name="tanggal" required></label>
+        <label>Pemesan <input name="pemesan"></label>
+        <label>Metode <select name="metode"><option>Transfer</option><option>Cash</option><option>QRIS</option><option>Lainnya</option></select></label>
+        <label>Catatan <input name="catatan"></label>
+      </div>
+      <table class="items"><thead><tr><th>Produk</th><th>Qty</th><th>Harga satuan</th><th>Subtotal</th><th></th></tr></thead><tbody></tbody></table>
+      <button type="button" class="tambah-item secondary">+ Item</button>
+      <p class="total-form">Total: <b id="pj-total">Rp0</b></p>
+      <button type="submit">Simpan penjualan</button>
+    </form>
+    <div id="list-penjualan"></div>
+  </section>
+
+  <!-- PEMBELIAN -->
+  <section id="tab-pembelian" class="tab">
+    <form id="f-pembelian" class="card">
+      <h2>Catat pembelian bahan</h2>
+      <div class="grid">
+        <label>Tanggal <input type="date" name="tanggal" required></label>
+        <label>Bahan <select name="bahan_id" required></select></label>
+        <label>Qty <input type="number" step="any" min="0" name="qty" required></label>
+        <label>Total bayar (Rp) <input type="number" step="any" min="0" name="total" required></label>
+        <label>Pemasok <input name="pemasok"></label>
+        <label>Catatan <input name="catatan"></label>
+      </div>
+      <p class="hint" id="pb-satuan"></p>
+      <button type="submit">Simpan pembelian</button>
+    </form>
+    <div id="list-pembelian"></div>
+  </section>
+
+  <!-- BEBAN -->
+  <section id="tab-beban" class="tab">
+    <form id="f-beban" class="card">
+      <h2>Catat beban operasional</h2>
+      <div class="grid">
+        <label>Tanggal <input type="date" name="tanggal" required></label>
+        <label>Kategori <input name="kategori" list="dl-kategori" required></label>
+        <label>Jumlah (Rp) <input type="number" step="any" min="0" name="jumlah" required></label>
+        <label>Catatan <input name="catatan"></label>
+      </div>
+      <datalist id="dl-kategori"></datalist>
+      <p class="hint">Belanja bahan baku dicatat di "Pembelian Bahan" (masuk persediaan), bukan di sini.</p>
+      <button type="submit">Simpan beban</button>
+    </form>
+    <div id="list-beban"></div>
+  </section>
+
+  <!-- BAHAN -->
+  <section id="tab-bahan" class="tab">
+    <form id="f-bahan" class="card">
+      <h2>Tambah bahan</h2>
+      <div class="grid">
+        <label>Nama <input name="nama" required></label>
+        <label>Satuan <input name="satuan" placeholder="gram, ml, pcs" required></label>
+      </div>
+      <button type="submit">Simpan bahan</button>
+    </form>
+    <div id="list-bahan"></div>
+    <div id="mutasi-bahan"></div>
+  </section>
+
+  <!-- PRODUK -->
+  <section id="tab-produk" class="tab">
+    <form id="f-produk" class="card">
+      <h2 id="pr-judul">Tambah produk</h2>
+      <input type="hidden" name="pid">
+      <div class="grid">
+        <label>Nama <input name="nama" required></label>
+        <label>Harga jual (Rp) <input type="number" step="any" min="0" name="harga_jual" required></label>
+      </div>
+      <h3>Resep per 1 unit</h3>
+      <table class="items"><thead><tr><th>Bahan</th><th>Takaran</th><th>Biaya (harga rata saat ini)</th><th></th></tr></thead><tbody></tbody></table>
+      <button type="button" class="tambah-item secondary">+ Bahan</button>
+      <p class="total-form">HPP per unit saat ini: <b id="pr-hpp">Rp0</b></p>
+      <button type="submit">Simpan produk</button>
+      <button type="button" id="pr-batal" class="secondary" hidden>Batal edit</button>
+    </form>
+    <div id="list-produk"></div>
+  </section>
+
+  <!-- OPNAME -->
+  <section id="tab-opname" class="tab">
+    <form id="f-opname" class="card">
+      <h2>Stok opname</h2>
+      <div class="grid">
+        <label>Tanggal <input type="date" name="tanggal" required></label>
+        <label>Bahan <select name="bahan_id" required></select></label>
+        <label>Qty aktual (hasil hitung) <input type="number" step="any" min="0" name="qty_aktual" required></label>
+        <label>Catatan <input name="catatan"></label>
+      </div>
+      <p class="hint">Selisih antara stok sistem dan hasil hitung masuk laporan sebagai beban "Selisih persediaan".</p>
+      <button type="submit">Simpan opname</button>
+    </form>
+    <div id="list-opname"></div>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <h3 id="dlg-judul"></h3>
+  <div id="dlg-isi"></div>
+  <form method="dialog"><button>Tutup</button></form>
+</dialog>
+<div id="toast"></div>
+
+<script src="/static/app.js"></script>
+<script>
+  document.getElementById("keluar").addEventListener("click", async () => {
+    await fetch("/api/logout", { method: "POST" });
+    location.href = "/login";
+  });
+</script>
+</body>
+</html>
