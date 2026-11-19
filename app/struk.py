@@ -15,7 +15,7 @@ import urllib.request
 import anthropic
 
 MODEL = os.environ.get("STRUK_MODEL", "claude-haiku-5-5")
-GEMINI_MODEL = os.environ.get("STRUK_GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.environ.get("STRUK_GEMINI_MODEL", "gemini-flash-latest")
 MEDIA_DIIZINKAN = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 MAKS_BYTE = 8 * 1024 * 1024
 
@@ -107,6 +107,8 @@ def _via_gemini(gambar: bytes, media_type: str, prompt: str) -> str:
             raise StrukGagal("API key Gemini ditolak. Periksa GEMINI_API_KEY.", 503)
         if e.code == 429:
             raise StrukGagal("Kuota gratis Gemini habis/sibuk. Coba lagi sebentar lagi.", 429)
+        if e.code == 404:
+            raise StrukGagal(f"Model Gemini '{GEMINI_MODEL}' tidak ditemukan. Atur STRUK_GEMINI_MODEL ke model yang tersedia.", 502)
         raise StrukGagal(f"Layanan OCR gagal (kode {e.code}).", 502)
     except (urllib.error.URLError, TimeoutError):
         raise StrukGagal("Tidak bisa menghubungi layanan OCR.", 502)
