@@ -377,7 +377,8 @@ $("#struk-baca").addEventListener("click", async () => {
 });
 
 function tampilkanDraf(d) {
-  DRAF_STRUK = d.item.map((it) => ({ ...it, qty: it.qty_bahan || "" }));
+  // qty_bahan 0 = OCR tak bisa menghitung satuan: pakai jumlah di struk sebagai perkiraan awal (ditandai auto).
+  DRAF_STRUK = d.item.map((it) => ({ ...it, auto: !it.qty_bahan, qty: it.qty_bahan || it.jumlah || "" }));
   const opsi = (id) =>
     '<option value="">- pilih bahan -</option><option value="baru">+ Bahan baru...</option>' +
     BAHAN.map((b) => `<option value="${b.id}"${b.id === id ? " selected" : ""}>${esc(b.nama)} (${esc(b.satuan)})</option>`).join("");
@@ -389,7 +390,7 @@ function tampilkanDraf(d) {
           <input name="nama_baru" placeholder="Nama bahan baru" value="${esc(it.nama_struk)}">
           <input name="satuan_baru" placeholder="Satuan (gram, pcs, ml...)">
         </div></td>
-      <td><input type="number" step="any" min="0" name="qty" value="${it.qty}" placeholder="Qty"></td>
+      <td><input type="number" step="any" min="0" name="qty" value="${it.qty}" placeholder="Qty"${it.auto ? " data-auto" : ""}></td>
       <td><input type="number" step="any" min="0" name="total" value="${it.total}"></td>
       <td class="num"><button type="button" class="link" data-hapus>Buang</button></td>
     </tr>`
@@ -402,6 +403,7 @@ function tampilkanDraf(d) {
       <label>Pemasok <input name="pemasok" value="${esc(d.pemasok)}"></label>
     </div>
     ${d.item.length ? `<div class="tabel-wrap"><table class="items"><thead><tr><th>Barang</th><th>Qty (satuan bahan)</th><th>Total (Rp)</th><th></th></tr></thead><tbody>${baris}</tbody></table></div>` : '<p class="hint">Tidak ada barang yang terbaca. Coba foto yang lebih jelas.</p>'}
+    <p class="hint">Qty yang kosong/perkiraan diisi dari jumlah di struk: sesuaikan dengan satuan bahan (mis. 2 bungkus @500 g = 1000 gram).</p>
     <p class="hint" id="struk-jumlah"></p>
     <button type="button" id="struk-simpan">Simpan semua</button>
     <button type="button" class="secondary" id="struk-batal">Batal</button>`;
@@ -415,10 +417,20 @@ function tampilkanDraf(d) {
 
 {
   const box = $("#struk-review");
-  box.addEventListener("input", () => hitungStruk());
+  box.addEventListener("input", (e) => {
+    if (e.target.name === "qty") delete e.target.dataset.auto; // sudah diedit pengguna
+    hitungStruk();
+  });
   box.addEventListener("change", (e) => {
     if (e.target.name !== "bahan") return;
-    $(".baru", e.target.closest("tr")).hidden = e.target.value !== "baru";
+    const tr = e.target.closest("tr");
+    $(".baru", tr).hidden = e.target.value !== "baru";
+    // Pilih bahan & qty masih kosong/perkiraan: isi dari jumlah di struk (sesuaikan dengan satuan bahan).
+    const qty = $('[name="qty"]', tr), it = DRAF_STRUK[+tr.dataset.i];
+    if (e.target.value && it && (!qty.value || "auto" in qty.dataset)) {
+      qty.value = it.jumlah || "";
+      qty.dataset.auto = "";
+    }
   });
   box.addEventListener("click", (e) => {
     if (!e.target.matches("[data-hapus]")) return;
